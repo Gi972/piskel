@@ -9,7 +9,10 @@
 
   ns.DrawingTestRecorder.prototype.init = function () {
     $.subscribe(Events.MOUSE_EVENT, this.onMouseEvent_.bind(this));
+    $.subscribe(Events.KEYBOARD_EVENT, this.onKeyboardEvent_.bind(this));
     $.subscribe(Events.TOOL_SELECTED, this.onToolEvent_.bind(this));
+    $.subscribe(Events.PEN_SIZE_CHANGED, this.onPenSizeChanged_.bind(this));
+    $.subscribe(Events.TRANSFORMATION_EVENT, this.onTransformationEvent_.bind(this));
     $.subscribe(Events.PRIMARY_COLOR_SELECTED, this.onColorEvent_.bind(this, true));
     $.subscribe(Events.SECONDARY_COLOR_SELECTED, this.onColorEvent_.bind(this, false));
 
@@ -44,9 +47,10 @@
         width : this.piskelController.getWidth(),
         height : this.piskelController.getHeight()
       },
-      primaryColor : pskl.app.paletteController.getPrimaryColor(),
-      secondaryColor : pskl.app.paletteController.getSecondaryColor(),
-      selectedTool : pskl.app.toolController.currentSelectedTool.instance.toolId
+      primaryColor : pskl.app.selectedColorsService.getPrimaryColor(),
+      secondaryColor : pskl.app.selectedColorsService.getSecondaryColor(),
+      selectedTool : pskl.app.toolController.currentSelectedTool.toolId,
+      penSize : pskl.app.penSizeService.getPenSize()
     };
   };
 
@@ -73,6 +77,23 @@
     }
   };
 
+  ns.DrawingTestRecorder.prototype.onKeyboardEvent_ = function (evt, domEvent) {
+    if (this.isRecording) {
+      var recordEvent = {};
+      recordEvent.type = 'keyboard-event';
+      recordEvent.event = {
+        which : domEvent.which,
+        shiftKey : domEvent.shiftKey,
+        altKey : domEvent.altKey,
+        ctrlKey : domEvent.ctrlKey,
+        target : {
+          nodeName : domEvent.target.nodeName
+        }
+      };
+      this.events.push(recordEvent);
+    }
+  };
+
   ns.DrawingTestRecorder.prototype.onColorEvent_ = function (isPrimary, evt, color) {
     if (this.isRecording) {
       var recordEvent = {};
@@ -88,6 +109,29 @@
       var recordEvent = {};
       recordEvent.type = 'tool-event';
       recordEvent.toolId = tool.toolId;
+      this.events.push(recordEvent);
+    }
+  };
+
+  ns.DrawingTestRecorder.prototype.onPenSizeChanged_ = function (evt) {
+    if (this.isRecording) {
+      var recordEvent = {};
+      recordEvent.type = 'pensize-event';
+      recordEvent.penSize = pskl.app.penSizeService.getPenSize();
+      this.events.push(recordEvent);
+    }
+  };
+
+  ns.DrawingTestRecorder.prototype.onTransformationEvent_ = function (evt, toolId, domEvent) {
+    if (this.isRecording) {
+      var recordEvent = {};
+      recordEvent.type = 'transformtool-event';
+      recordEvent.toolId = toolId;
+      recordEvent.event = {
+        shiftKey : domEvent.shiftKey,
+        altKey : domEvent.altKey,
+        ctrlKey : domEvent.ctrlKey
+      };
       this.events.push(recordEvent);
     }
   };

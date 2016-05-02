@@ -11,16 +11,19 @@
 
     this.toolId = 'tool-circle';
     this.helpText = 'Circle tool';
+    this.shortcut = pskl.service.keyboard.Shortcuts.TOOL.CIRCLE;
   };
 
   pskl.utils.inherit(ns.Circle, ns.ShapeTool);
 
-  ns.Circle.prototype.draw_ = function (col, row, color, targetFrame) {
-    var circlePoints = this.getCirclePixels_(this.startCol, this.startRow, col, row);
-    for (var i = 0 ; i < circlePoints.length ; i++) {
-      // Change model:
-      targetFrame.setPixel(circlePoints[i].col, circlePoints[i].row, color);
-    }
+  /**
+   * @override
+   */
+  ns.Circle.prototype.draw = function (col, row, color, targetFrame, penSize) {
+    var circlePixels = this.getCirclePixels_(this.startCol, this.startRow, col, row);
+    pskl.PixelUtils.resizePixels(circlePixels, penSize).forEach(function (point) {
+      targetFrame.setPixel(point[0], point[1], color);
+    });
   };
 
   ns.Circle.prototype.getCirclePixels_ = function (x0, y0, x1, y1) {

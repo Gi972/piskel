@@ -47,9 +47,6 @@
     this.isClicked = false;
     this.previousMousemoveTime = 0;
     this.currentToolBehavior = null;
-
-    // State of clicked button (need to be stateful here, see comment in getCurrentColor_)
-    this.currentMouseButton_ = Constants.LEFT_BUTTON;
   };
 
   ns.DrawingController.prototype.init = function () {
@@ -62,12 +59,13 @@
 
     $(window).resize($.proxy(this.startResizeTimer_, this));
 
-    $.subscribe(Events.USER_SETTINGS_CHANGED, $.proxy(this.onUserSettingsChange_, this));
-    $.subscribe(Events.FRAME_SIZE_CHANGED, $.proxy(this.onFrameSizeChange_, this));
+    $.subscribe(Events.USER_SETTINGS_CHANGED, this.onUserSettingsChange_.bind(this));
+    $.subscribe(Events.FRAME_SIZE_CHANGED, this.onFrameSizeChange_.bind(this));
 
-    pskl.app.shortcutService.addShortcut('0', this.resetZoom_.bind(this));
-    pskl.app.shortcutService.addShortcut('+', this.increaseZoom_.bind(this, 1));
-    pskl.app.shortcutService.addShortcut('-', this.decreaseZoom_.bind(this, 1));
+    var shortcuts = pskl.service.keyboard.Shortcuts;
+    pskl.app.shortcutService.registerShortcut(shortcuts.MISC.RESET_ZOOM, this.resetZoom_.bind(this));
+    pskl.app.shortcutService.registerShortcut(shortcuts.MISC.INCREASE_ZOOM, this.increaseZoom_.bind(this, 1));
+    pskl.app.shortcutService.registerShortcut(shortcuts.MISC.DECREASE_ZOOM, this.decreaseZoom_.bind(this, 1));
 
     window.setTimeout(function () {
       this.afterWindowResize_();
@@ -88,7 +86,9 @@
     window.addEventListener('mouseup', this.onMouseup_.bind(this));
     window.addEventListener('mousemove', this.onMousemove_.bind(this));
     window.addEventListener('keyup', this.onKeyup_.bind(this));
-
+    window.addEventListener('touchstart', this.onMousedown_.bind(this));
+    window.addEventListener('touchmove' , this.onMousemove_.bind(this));
+    window.addEventListener('touchend', this.onMouseup_.bind(this));
     // Deactivate right click:
     body.contextmenu(this.onCanvasContextMenu_);
 
@@ -143,9 +143,11 @@
     $.publish(Events.MOUSE_EVENT, [event, this]);
     var frame = this.piskelController.getCurrentFrame();
     var coords = this.getSpriteCoordinates(event.clientX, event.clientY);
+    if (event.changedTouches && event.changedTouches[0]) {
+      coords = this.getSpriteCoordinates(event.changedTouches[0].clientX, event.changedTouches[0].clientY);
+    }
 
     this.isClicked = true;
-    this.setCurrentButton(event);
 
     if (event.button === Constants.MIDDLE_BUTTON) {
       this.dragHandler.startDrag(event.clientX, event.clientY);
@@ -155,7 +157,6 @@
       this.currentToolBehavior.applyToolAt(
         coords.x,
         coords.y,
-        this.getCurrentColor_(),
         frame,
         this.overlayFrame,
         event
@@ -169,6 +170,10 @@
   ns.DrawingController.prototype.onMousemove_ = function (event) {
     this._clientX = event.clientX;
     this._clientY = event.clientY;
+    if (event.changedTouches && event.changedTouches[0]) {
+      this._clientX = event.changedTouches[0].clientX;
+      this._clientY = event.changedTouches[0].clientY;
+    }
 
     var currentTime = new Date().getTime();
     // Throttling of the mousemove event:
@@ -191,16 +196,13 @@
     var currentFrame = this.piskelController.getCurrentFrame();
 
     if (this.isClicked) {
-      if (this.currentMouseButton_ == Constants.MIDDLE_BUTTON) {
+      if (pskl.app.mouseStateService.isMiddleButtonPressed()) {
         this.dragHandler.updateDrag(x, y);
       } else {
         $.publish(Events.MOUSE_EVENT, [event, this]);
-        // Warning : do not call setCurrentButton here
-        // mousemove do not have the correct mouse button information on all browsers
         this.currentToolBehavior.moveToolAt(
           coords.x | 0,
           coords.y | 0,
-          this.getCurrentColor_(),
           currentFrame,
           this.overlayFrame,
           event
@@ -210,7 +212,6 @@
       this.currentToolBehavior.moveUnactiveToolAt(
         coords.x,
         coords.y,
-        this.getCurrentColor_(),
         currentFrame,
         this.overlayFrame,
         event
@@ -220,17 +221,24 @@
   };
 
   ns.DrawingController.prototype.onMousewheel_ = function (jQueryEvent) {
-    var event = jQueryEvent.originalEvent;
+    var evt = jQueryEvent.originalEvent;
     // Ratio between wheelDeltaY (mousewheel event) and deltaY (wheel event) is -40
     var delta;
     if (pskl.utils.UserAgent.isChrome) {
-      delta = event.wheelDeltaY;
+      delta = evt.wheelDeltaY;
     } else if (pskl.utils.UserAgent.isIE11) {
-      delta = event.wheelDelta;
+      delta = evt.wheelDelta;
     } else if (pskl.utils.UserAgent.isFirefox) {
-      delta = -40 * event.deltaY;
+      delta = -40 * evt.deltaY;
     }
     var modifier = Math.abs(delta / 120);
+
+    if (pskl.utils.UserAgent.isMac ? evt.metaKey : evt.ctrlKey) {
+      modifier = modifier * 5;
+      // prevent default to prevent the default browser UI resize
+      evt.preventDefault();
+    }
+
     if (delta > 0) {
       this.increaseZoom_(modifier);
     } else if (delta < 0) {
@@ -254,17 +262,18 @@
   ns.DrawingController.prototype.onMouseup_ = function (event) {
     var frame = this.piskelController.getCurrentFrame();
     var coords = this.getSpriteCoordinates(event.clientX, event.clientY);
+    if (event.changedTouches && event.changedTouches[0]) {
+      coords = this.getSpriteCoordinates(event.changedTouches[0].clientX, event.changedTouches[0].clientY);
+    }
     if (this.isClicked) {
-      $.publish(Events.MOUSE_EVENT, [event, this]);
       // A mouse button was clicked on the drawing canvas before this mouseup event,
       // the user was probably drawing on the canvas.
       // Note: The mousemove movement (and the mouseup) may end up outside
       // of the drawing canvas.
 
       this.isClicked = false;
-      this.setCurrentButton(event);
 
-      if (event.button === Constants.MIDDLE_BUTTON) {
+      if (pskl.app.mouseStateService.isMiddleButtonPressed()) {
         if (this.dragHandler.isDragging()) {
           this.dragHandler.stopDrag();
         } else if (frame.containsPixel(coords.x, coords.y)) {
@@ -274,7 +283,6 @@
         this.currentToolBehavior.releaseToolAt(
           coords.x,
           coords.y,
-          this.getCurrentColor_(),
           this.piskelController.getCurrentFrame(),
           this.overlayFrame,
           event
@@ -282,6 +290,7 @@
 
         $.publish(Events.TOOL_RELEASED);
       }
+      $.publish(Events.MOUSE_EVENT, [event, this]);
     }
   };
 
@@ -297,29 +306,6 @@
 
   ns.DrawingController.prototype.getScreenCoordinates = function(spriteX, spriteY) {
     return this.renderer.reverseCoordinates(spriteX, spriteY);
-  };
-
-  ns.DrawingController.prototype.setCurrentButton = function (event) {
-    this.currentMouseButton_ = event.button;
-  };
-
-  /**
-   * @private
-   */
-  ns.DrawingController.prototype.getCurrentColor_ = function () {
-    // WARNING : Do not rely on the current event to get the current color!
-    // It might seem like a good idea, and works perfectly fine on Chrome
-    // Sadly Firefox and IE found clever, for some reason, to set event.button to 0
-    // on a mouse move event
-    // This always matches a LEFT mouse button which is __really__ not helpful
-
-    if (this.currentMouseButton_ == Constants.RIGHT_BUTTON) {
-      return this.paletteController.getSecondaryColor();
-    } else if (this.currentMouseButton_ == Constants.LEFT_BUTTON) {
-      return this.paletteController.getPrimaryColor();
-    } else {
-      return Constants.DEFAULT_PEN_COLOR;
-    }
   };
 
   /**
@@ -417,7 +403,7 @@
   };
 
   ns.DrawingController.prototype.getZoomStep_ = function () {
-    return this.calculateZoom_() / 10;
+    return Math.max(0.1, this.renderer.getZoom() / 15);
   };
 
   ns.DrawingController.prototype.setZoom_ = function (zoom) {

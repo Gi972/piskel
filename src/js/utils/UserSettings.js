@@ -8,9 +8,13 @@
     CANVAS_BACKGROUND : 'CANVAS_BACKGROUND',
     SELECTED_PALETTE : 'SELECTED_PALETTE',
     TILED_PREVIEW : 'TILED_PREVIEW',
+    ORIGINAL_SIZE_PREVIEW : 'ORIGINAL_SIZE_PREVIEW',
     ONION_SKIN : 'ONION_SKIN',
     LAYER_PREVIEW : 'LAYER_PREVIEW',
-
+    LAYER_OPACITY : 'LAYER_OPACITY',
+    EXPORT_SCALING: 'EXPORT_SCALING',
+    PEN_SIZE : 'PEN_SIZE',
+    RESIZE_SETTINGS: 'RESIZE_SETTINGS',
     KEY_TO_DEFAULT_VALUE_MAP_ : {
       'GRID_WIDTH' : 0,
       'MAX_FPS' : 24,
@@ -21,8 +25,17 @@
       'CANVAS_BACKGROUND' : 'lowcont-dark-canvas-background',
       'SELECTED_PALETTE' : Constants.CURRENT_COLORS_PALETTE_ID,
       'TILED_PREVIEW' : false,
+      'ORIGINAL_SIZE_PREVIEW' : false,
       'ONION_SKIN' : false,
-      'LAYER_PREVIEW' : true
+      'LAYER_OPACITY' : 0.2,
+      'LAYER_PREVIEW' : true,
+      'EXPORT_SCALING' : 1,
+      'PEN_SIZE' : 1,
+      'RESIZE_SETTINGS': {
+        maintainRatio : true,
+        resizeContent : false,
+        origin : 'TOPLEFT'
+      }
     },
 
     /**
@@ -85,6 +98,10 @@
      * @private
      */
     checkKeyValidity_ : function(key) {
+      if (key.indexOf(pskl.service.keyboard.Shortcut.USER_SETTINGS_PREFIX) === 0) {
+        return true;
+      }
+
       var isValidKey = key in this.KEY_TO_DEFAULT_VALUE_MAP_;
       if (!isValidKey) {
         console.error('UserSettings key <' + key + '> not found in supported keys.');

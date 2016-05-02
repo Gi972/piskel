@@ -10,10 +10,9 @@
   // I apologize to my future self for this one.
   var NO_SCROLL_MAX_COLORS = 20;
 
-  ns.PalettesListController = function (paletteController, usedColorService) {
+  ns.PalettesListController = function (usedColorService) {
     this.usedColorService = usedColorService;
     this.paletteService = pskl.app.paletteService;
-    this.paletteController = paletteController;
   };
 
   ns.PalettesListController.prototype.init = function () {
@@ -38,8 +37,10 @@
     $.subscribe(Events.SECONDARY_COLOR_SELECTED, this.highlightSelectedColors.bind(this));
     $.subscribe(Events.USER_SETTINGS_CHANGED, $.proxy(this.onUserSettingsChange_, this));
 
-    pskl.app.shortcutService.addShortcuts(['>', 'shift+>'], this.selectNextColor_.bind(this));
-    pskl.app.shortcutService.addShortcut('<', this.selectPreviousColor_.bind(this));
+    var shortcuts = pskl.service.keyboard.Shortcuts;
+    pskl.app.shortcutService.registerShortcut(shortcuts.COLOR.PREVIOUS_COLOR, this.selectPreviousColor_.bind(this));
+    pskl.app.shortcutService.registerShortcut(shortcuts.COLOR.NEXT_COLOR, this.selectNextColor_.bind(this));
+    pskl.app.shortcutService.registerShortcut(shortcuts.COLOR.SELECT_COLOR, this.selectColorForKey_.bind(this));
 
     this.fillPaletteList();
     this.updateFromUserSettings();
@@ -118,6 +119,12 @@
     return currentIndex;
   };
 
+  ns.PalettesListController.prototype.selectColorForKey_ = function (key) {
+    var index = parseInt(key, 10);
+    index = (index + 9) % 10;
+    this.selectColor_(index);
+  };
+
   ns.PalettesListController.prototype.selectColor_ = function (index) {
     var colors = this.getSelectedPaletteColors_();
     var color = colors[index];
@@ -145,7 +152,9 @@
   };
 
   ns.PalettesListController.prototype.onCreatePaletteClick_ = function (evt) {
-    $.publish(Events.DIALOG_DISPLAY, 'create-palette');
+    $.publish(Events.DIALOG_DISPLAY, {
+      dialogId : 'create-palette'
+    });
   };
 
   ns.PalettesListController.prototype.onEditPaletteClick_ = function (evt) {
@@ -177,13 +186,13 @@
     this.removeClass_(PRIMARY_COLOR_CLASSNAME);
     this.removeClass_(SECONDARY_COLOR_CLASSNAME);
 
-    var colorContainer = this.getColorContainer_(this.paletteController.getSecondaryColor());
+    var colorContainer = this.getColorContainer_(pskl.app.selectedColorsService.getSecondaryColor());
     if (colorContainer) {
       colorContainer.classList.remove(PRIMARY_COLOR_CLASSNAME);
       colorContainer.classList.add(SECONDARY_COLOR_CLASSNAME);
     }
 
-    colorContainer = this.getColorContainer_(this.paletteController.getPrimaryColor());
+    colorContainer = this.getColorContainer_(pskl.app.selectedColorsService.getPrimaryColor());
     if (colorContainer) {
       colorContainer.classList.remove(SECONDARY_COLOR_CLASSNAME);
       colorContainer.classList.add(PRIMARY_COLOR_CLASSNAME);

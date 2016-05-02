@@ -10,17 +10,20 @@
     ns.ShapeTool.call(this);
 
     this.toolId = 'tool-rectangle';
-
     this.helpText = 'Rectangle tool';
+    this.shortcut = pskl.service.keyboard.Shortcuts.TOOL.RECTANGLE;
   };
 
   pskl.utils.inherit(ns.Rectangle, ns.ShapeTool);
 
-  ns.Rectangle.prototype.draw_ = function (col, row, color, targetFrame) {
-    var strokePoints = pskl.PixelUtils.getBoundRectanglePixels(this.startCol, this.startRow, col, row);
-    for (var i = 0 ; i < strokePoints.length ; i++) {
-      // Change model:
-      targetFrame.setPixel(strokePoints[i].col, strokePoints[i].row, color);
-    }
+  /**
+   * @override
+   */
+  ns.Rectangle.prototype.draw = function (col, row, color, targetFrame, penSize) {
+    var rectanglePixels = pskl.PixelUtils.getBoundRectanglePixels(this.startCol, this.startRow, col, row);
+
+    pskl.PixelUtils.resizePixels(rectanglePixels, penSize).forEach(function (point) {
+      targetFrame.setPixel(point[0], point[1], color);
+    });
   };
 })();

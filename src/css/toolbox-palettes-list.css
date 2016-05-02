@@ -15,9 +15,55 @@
     height: 32px;
     position: relative;
 }
+
+.palettes-list-color:nth-child(-n+10):after {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    background-color: black;
+    color: gold;
+
+    font-family: Tahoma;
+    font-size: 0.5em;
+    font-weight: bold;
+
+    padding: 2px 3px 2px 3px;
+    border-radius: 0 0 0 2px;
+}
+
+.palettes-list-color:nth-child(1):after {
+    content: "1";
+}
+.palettes-list-color:nth-child(2):after {
+    content: "2";
+}
+.palettes-list-color:nth-child(3):after {
+    content: "3";
+}
+.palettes-list-color:nth-child(4):after {
+    content: "4";
+}
+.palettes-list-color:nth-child(5):after {
+    content: "5";
+}
+.palettes-list-color:nth-child(6):after {
+    content: "6";
+}
+.palettes-list-color:nth-child(7):after {
+    content: "7";
+}
+.palettes-list-color:nth-child(8):after {
+    content: "8";
+}
+.palettes-list-color:nth-child(9):after {
+    content: "9";
+}
+
 .palettes-list-color:nth-child(-n+5) {
     margin-top: 5px;
 }
+
 .palettes-list-color div {
     width: 32px;
     height: 32px;
@@ -30,18 +76,16 @@
     position: absolute;
     bottom: 1px;
     display: inline-block;
-    border: 7px solid gold;
-    border-top-color: transparent;
-    width: 0px;
-    height: 0px;
+    background: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20height%3D%2215%22%20width%3D%2215%22%3E%3Cpath%20stroke%3D%22gold%22%20stroke-width%3D%222%22%20d%3D%22M1%203v10h10z%22/%3E%3C/svg%3E');
+    width: 14px;
+    height: 14px;
 }
 .palettes-list-primary-color:before {
     left: 1px;
-    border-right-color: transparent;
 }
 .palettes-list-secondary-color:before {
     right: 1px;
-    border-left-color: transparent;
+    background: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20height%3D%2215%22%20width%3D%2215%22%3E%3Cpath%20stroke%3D%22gold%22%20stroke-width%3D%222%22%20d%3D%22M3%2013h10V3z%22/%3E%3C/svg%3E');
 }
 .palettes-list-actions {
     background-color: #3f3f3f;
@@ -91,10 +135,6 @@
     outline: none;
 }
 
-.palettes-list-actions .edit-icon {
-    background-size: 15px;
-    background-position: 50%;
-}
 .palettes-list-no-colors {
     height: 42px;
     width: 100%;

@@ -5,7 +5,7 @@
     this.initialState = testRecord.initialState;
     this.events = testRecord.events;
     this.referencePng = testRecord.png;
-    this.step = step || ns.DrawingTestPlayer.DEFAULT_STEP;
+    this.step = step || this.initialState.step || ns.DrawingTestPlayer.DEFAULT_STEP;
     this.callbacks = [];
     this.shim = null;
   };
@@ -28,6 +28,9 @@
     $.publish(Events.SELECT_PRIMARY_COLOR, [this.initialState.primaryColor]);
     $.publish(Events.SELECT_SECONDARY_COLOR, [this.initialState.secondaryColor]);
     $.publish(Events.SELECT_TOOL, [this.initialState.selectedTool]);
+    if (this.initialState.penSize) {
+      pskl.app.penSizeService.setPenSize(this.initialState.penSize);
+    }
   };
 
   ns.DrawingTestPlayer.prototype.createPiskel_ = function (width, height) {
@@ -59,6 +62,9 @@
     };
   };
 
+  /**
+   * Catch all mouse events to avoid perturbations during the test
+   */
   ns.DrawingTestPlayer.prototype.createMouseShim_ = function () {
     this.shim = document.createElement('DIV');
     this.shim.style.cssText = 'position:fixed;top:0;left:0;right:0;left:0;bottom:0;z-index:15000';
@@ -78,21 +84,28 @@
     this.timer = window.setTimeout(function () {
       var recordEvent = this.events[index];
 
+      if (!recordEvent) {
+        this.onTestEnd_();
+        return;
+      }
+
       if (recordEvent.type === 'mouse-event') {
         this.playMouseEvent_(recordEvent);
+      } else if (recordEvent.type === 'keyboard-event') {
+        this.playKeyboardEvent_(recordEvent);
       } else if (recordEvent.type === 'color-event') {
         this.playColorEvent_(recordEvent);
       } else if (recordEvent.type === 'tool-event') {
         this.playToolEvent_(recordEvent);
+      } else if (recordEvent.type === 'pensize-event') {
+        this.playPenSizeEvent_(recordEvent);
+      } else if (recordEvent.type === 'transformtool-event') {
+        this.playTransformToolEvent_(recordEvent);
       } else if (recordEvent.type === 'instrumented-event') {
         this.playInstrumentedEvent_(recordEvent);
       }
 
-      if (this.events[index + 1]) {
-        this.playEvent_(index + 1);
-      } else {
-        this.onTestEnd_();
-      }
+      this.playEvent_(index + 1);
     }.bind(this), this.step);
   };
 
@@ -114,6 +127,16 @@
     }
   };
 
+  ns.DrawingTestPlayer.prototype.playKeyboardEvent_ = function (recordEvent) {
+    var event = recordEvent.event;
+    if (pskl.utils.UserAgent.isMac && event.ctrlKey) {
+      event.metaKey = true;
+    }
+
+    event.preventDefault = function () {};
+    pskl.app.shortcutService.onKeyDown_(event);
+  };
+
   ns.DrawingTestPlayer.prototype.playColorEvent_ = function (recordEvent) {
     if (recordEvent.isPrimary) {
       $.publish(Events.SELECT_PRIMARY_COLOR, [recordEvent.color]);
@@ -124,6 +147,14 @@
 
   ns.DrawingTestPlayer.prototype.playToolEvent_ = function (recordEvent) {
     $.publish(Events.SELECT_TOOL, [recordEvent.toolId]);
+  };
+
+  ns.DrawingTestPlayer.prototype.playPenSizeEvent_ = function (recordEvent) {
+    pskl.app.penSizeService.setPenSize(recordEvent.penSize);
+  };
+
+  ns.DrawingTestPlayer.prototype.playTransformToolEvent_ = function (recordEvent) {
+    pskl.app.transformationsController.applyTool(recordEvent.toolId, recordEvent.event);
   };
 
   ns.DrawingTestPlayer.prototype.playInstrumentedEvent_ = function (recordEvent) {

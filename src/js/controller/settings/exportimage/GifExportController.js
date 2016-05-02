@@ -6,6 +6,7 @@
   var MAX_EXPORT_ZOOM = 20;
   var DEFAULT_EXPORT_ZOOM = 10;
   var MAGIC_PINK = '#FF00FF';
+  var WHITE = '#FFFFFF';
 
   ns.GifExportController = function (piskelController) {
     this.piskelController = piskelController;
@@ -94,7 +95,7 @@
   };
 
   ns.GifExportController.prototype.updatePreview_ = function (src) {
-    this.previewContainerEl.innerHTML = '<div><img style="max-width:32px;"src="' + src + '"/></div>';
+    this.previewContainerEl.innerHTML = '<div><img style="max-width:32px;" src="' + src + '"/></div>';
   };
 
   ns.GifExportController.prototype.getZoom_ = function () {
@@ -104,23 +105,44 @@
   ns.GifExportController.prototype.renderAsImageDataAnimatedGIF = function(zoom, fps, cb) {
     var currentColors = pskl.app.currentColorsService.getCurrentColors();
 
-    var preserveColors = currentColors.length < MAX_GIF_COLORS;
-    var transparentColor = this.getTransparentColor(currentColors);
+    var layers = this.piskelController.getLayers();
+    var isTransparent = layers.some(function (l) {return l.isTransparent();});
+    var preserveColors = !isTransparent && currentColors.length < MAX_GIF_COLORS;
+
+    var transparentColor, transparent;
+    // transparency only supported if preserveColors is true, see Issue #357
+    if (preserveColors) {
+      transparentColor = this.getTransparentColor(currentColors);
+      transparent = parseInt(transparentColor.substring(1), 16);
+    } else {
+      transparentColor = WHITE;
+      transparent = null;
+    }
+
+    var width = this.piskelController.getWidth();
+    var height = this.piskelController.getHeight();
 
     var gif = new window.GIF({
       workers: 5,
       quality: 1,
-      width: this.piskelController.getWidth() * zoom,
-      height: this.piskelController.getHeight() * zoom,
+      width: width * zoom,
+      height: height * zoom,
       preserveColors : preserveColors,
-      transparent : parseInt(transparentColor.substring(1), 16)
+      transparent : transparent
     });
 
+    // Create a background canvas that will be filled with the transparent color before each render.
+    var background = pskl.utils.CanvasUtils.createCanvas(width, height);
+    var context = background.getContext('2d');
+    context.fillStyle = transparentColor;
+
     for (var i = 0 ; i < this.piskelController.getFrameCount() ; i++) {
-      var frame = this.piskelController.getFrameAt(i);
-      var canvasRenderer = new pskl.rendering.CanvasRenderer(frame, zoom);
-      canvasRenderer.drawTransparentAs(transparentColor);
-      var canvas = canvasRenderer.render();
+      var render = this.piskelController.renderFrameAt(i, true);
+      context.clearRect(0, 0, width, height);
+      context.fillRect(0, 0, width, height);
+      context.drawImage(render, 0, 0, width, height);
+
+      var canvas = pskl.utils.ImageResizer.scale(background, zoom);
       gif.addFrame(canvas.getContext('2d'), {
         delay: 1000 / fps
       });

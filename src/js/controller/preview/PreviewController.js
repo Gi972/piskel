@@ -4,6 +4,9 @@
   // Preview is a square of PREVIEW_SIZE x PREVIEW_SIZE
   var PREVIEW_SIZE = 200;
 
+  var ONION_SKIN_SHORTCUT = 'alt+O';
+  var ORIGINAL_SIZE_SHORTCUT = 'alt+1';
+
   ns.PreviewController = function (piskelController, container) {
     this.piskelController = piskelController;
     this.container = container;
@@ -11,49 +14,74 @@
     this.elapsedTime = 0;
     this.currentIndex = 0;
 
+    this.onionSkinShortcut = pskl.service.keyboard.Shortcuts.MISC.ONION_SKIN;
+    this.originalSizeShortcut = pskl.service.keyboard.Shortcuts.MISC.X1_PREVIEW;
+
     this.renderFlag = true;
 
-    this.fpsRangeInput = $('#preview-fps');
-    this.fpsCounterDisplay = $('#display-fps');
+    /**
+     * !! WARNING !! ALL THE INITIALISATION BELOW SHOULD BE MOVED TO INIT()
+     * IT WILL STAY HERE UNTIL WE CAN REMOVE SETFPS (see comment below)
+     */
+    this.fpsRangeInput = document.querySelector('#preview-fps');
+    this.fpsCounterDisplay = document.querySelector('#display-fps');
+    this.openPopupPreview = document.querySelector('.open-popup-preview-button');
+    this.originalSizeButton = document.querySelector('.original-size-button');
+    this.toggleOnionSkinButton = document.querySelector('.preview-toggle-onion-skin');
 
+    /**
+     * !! WARNING !! THIS SHOULD REMAIN HERE UNTIL, BECAUSE THE PREVIEW CONTROLLER
+     * IS THE SOURCE OF TRUTH AT THE MOMENT WHEN IT COMES TO FPSs
+     * IT WILL BE QUERIED BY OTHER OBJECTS SO DEFINE IT AS SOON AS POSSIBLE
+     */
     this.setFPS(Constants.DEFAULT.FPS);
 
-    var frame = this.piskelController.getCurrentFrame();
-
-    this.renderer = new pskl.rendering.frame.TiledFrameRenderer(this.container);
+    this.renderer = new pskl.rendering.frame.BackgroundImageFrameRenderer(this.container);
     this.popupPreviewController = new ns.PopupPreviewController(piskelController);
   };
 
   ns.PreviewController.prototype.init = function () {
-    // the oninput event won't work on IE10 unfortunately, but at least will provide a
-    // consistent behavior across all other browsers that support the input type range
-    // see https://bugzilla.mozilla.org/show_bug.cgi?id=853670
-    this.fpsRangeInput.on('input change', this.onFPSSliderChange.bind(this));
+    this.fpsRangeInput.addEventListener('change', this.onFpsRangeInputUpdate_.bind(this));
+    this.fpsRangeInput.addEventListener('input', this.onFpsRangeInputUpdate_.bind(this));
+
     document.querySelector('.right-column').style.width = Constants.ANIMATED_PREVIEW_WIDTH + 'px';
 
-    this.toggleOnionSkinEl = document.querySelector('.preview-toggle-onion-skin');
-    this.toggleOnionSkinEl.addEventListener('click', this.toggleOnionSkin_.bind(this));
+    pskl.utils.Event.addEventListener(this.toggleOnionSkinButton, 'click', this.toggleOnionSkin_, this);
+    pskl.utils.Event.addEventListener(this.openPopupPreview, 'click', this.onOpenPopupPreviewClick_, this);
+    pskl.utils.Event.addEventListener(this.originalSizeButton, 'click', this.onOriginalSizeButtonClick_, this);
 
-    pskl.utils.Event.addEventListener('.open-popup-preview-button', 'click', this.onOpenPopupPreviewClick_, this);
-
-    pskl.app.shortcutService.addShortcut('alt+O', this.toggleOnionSkin_.bind(this));
+    pskl.app.shortcutService.registerShortcut(this.onionSkinShortcut, this.toggleOnionSkin_.bind(this));
+    pskl.app.shortcutService.registerShortcut(this.originalSizeShortcut, this.onOriginalSizeButtonClick_.bind(this));
 
     $.subscribe(Events.FRAME_SIZE_CHANGED, this.onFrameSizeChange_.bind(this));
     $.subscribe(Events.USER_SETTINGS_CHANGED, $.proxy(this.onUserSettingsChange_, this));
-
     $.subscribe(Events.PISKEL_SAVE_STATE, this.setRenderFlag_.bind(this, true));
     $.subscribe(Events.PISKEL_RESET, this.setRenderFlag_.bind(this, true));
 
+    this.initTooltips_();
     this.popupPreviewController.init();
 
     this.updateZoom_();
     this.updateOnionSkinPreview_();
+    this.updateOriginalSizeButton_();
     this.updateMaxFPS_();
     this.updateContainerDimensions_();
   };
 
+  ns.PreviewController.prototype.initTooltips_ = function () {
+    var onionSkinTooltip = pskl.utils.TooltipFormatter.format('Toggle onion skin', this.onionSkinShortcut);
+    this.toggleOnionSkinButton.setAttribute('title', onionSkinTooltip);
+    var originalSizeTooltip = pskl.utils.TooltipFormatter.format('Original size preview', this.originalSizeShortcut);
+    this.originalSizeButton.setAttribute('title', originalSizeTooltip);
+  };
+
   ns.PreviewController.prototype.onOpenPopupPreviewClick_ = function () {
     this.popupPreviewController.open();
+  };
+
+  ns.PreviewController.prototype.onOriginalSizeButtonClick_ = function () {
+    var isEnabled = pskl.UserSettings.get(pskl.UserSettings.ORIGINAL_SIZE_PREVIEW);
+    pskl.UserSettings.set(pskl.UserSettings.ORIGINAL_SIZE_PREVIEW, !isEnabled);
   };
 
   ns.PreviewController.prototype.onUserSettingsChange_ = function (evt, name, value) {
@@ -63,28 +91,35 @@
       this.updateMaxFPS_();
     } else {
       this.updateZoom_();
+      this.updateOriginalSizeButton_();
       this.updateContainerDimensions_();
     }
   };
 
   ns.PreviewController.prototype.updateOnionSkinPreview_ = function () {
     var enabledClassname = 'preview-toggle-onion-skin-enabled';
-    if (pskl.UserSettings.get(pskl.UserSettings.ONION_SKIN)) {
-      this.toggleOnionSkinEl.classList.add(enabledClassname);
-    } else {
-      this.toggleOnionSkinEl.classList.remove(enabledClassname);
-    }
+    var isEnabled = pskl.UserSettings.get(pskl.UserSettings.ONION_SKIN);
+    this.toggleOnionSkinButton.classList.toggle(enabledClassname, isEnabled);
+  };
+
+  ns.PreviewController.prototype.updateOriginalSizeButton_ = function () {
+    var enabledClassname = 'original-size-button-enabled';
+    var isEnabled = pskl.UserSettings.get(pskl.UserSettings.ORIGINAL_SIZE_PREVIEW);
+    this.originalSizeButton.classList.toggle(enabledClassname, isEnabled);
   };
 
   ns.PreviewController.prototype.updateMaxFPS_ = function () {
     var maxFps = pskl.UserSettings.get(pskl.UserSettings.MAX_FPS);
-    this.fpsRangeInput.get(0).setAttribute('max', maxFps);
+    this.fpsRangeInput.setAttribute('max', maxFps);
     this.setFPS(Math.min(this.fps, maxFps));
   };
 
   ns.PreviewController.prototype.updateZoom_ = function () {
-    var isTiled = pskl.UserSettings.get(pskl.UserSettings.TILED_PREVIEW);
-    var zoom = isTiled ? 1 : this.calculateZoom_();
+    var originalSizeEnabled = pskl.UserSettings.get(pskl.UserSettings.ORIGINAL_SIZE_PREVIEW);
+    var tiledPreviewEnabled = pskl.UserSettings.get(pskl.UserSettings.TILED_PREVIEW);
+    var useOriginalSize = originalSizeEnabled || tiledPreviewEnabled;
+
+    var zoom = useOriginalSize ? 1 : this.calculateZoom_();
     this.renderer.setZoom(zoom);
     this.setRenderFlag_(true);
   };
@@ -104,20 +139,25 @@
     };
   };
 
-  ns.PreviewController.prototype.onFPSSliderChange = function (evt) {
-    this.setFPS(parseInt(this.fpsRangeInput[0].value, 10));
-
+  /**
+   * Event handler triggered on 'input' or 'change' events.
+   */
+  ns.PreviewController.prototype.onFpsRangeInputUpdate_ = function (evt) {
+    this.setFPS(parseInt(this.fpsRangeInput.value, 10));
+    // blur only on 'change' events, as blurring on 'input' breaks on Firefox
+    if (evt.type === 'change') {
+      this.fpsRangeInput.blur();
+    }
   };
 
   ns.PreviewController.prototype.setFPS = function (fps) {
     if (typeof fps === 'number') {
       this.fps = fps;
       // reset
-      this.fpsRangeInput.get(0).value = 0;
+      this.fpsRangeInput.value = 0;
       // set proper value
-      this.fpsRangeInput.get(0).value = this.fps;
-      this.fpsRangeInput.blur();
-      this.fpsCounterDisplay.html(this.fps + ' FPS');
+      this.fpsRangeInput.value = this.fps;
+      this.fpsCounterDisplay.innerHTML = this.fps + ' FPS';
     }
   };
 
@@ -128,9 +168,9 @@
   ns.PreviewController.prototype.render = function (delta) {
     this.elapsedTime += delta;
     var index = this.getNextIndex_(delta);
-    if (this.shoudlRender_() || this.currentIndex != index) {
+    if (this.shouldRender_() || this.currentIndex != index) {
       this.currentIndex = index;
-      var frame = this.piskelController.getFrameAt(this.currentIndex);
+      var frame = pskl.utils.LayerUtils.mergeFrameAt(this.piskelController.getLayers(), index);
       this.renderer.render(frame);
       this.renderFlag = false;
 
@@ -168,8 +208,9 @@
   };
 
   ns.PreviewController.prototype.updateContainerDimensions_ = function () {
-    var containerEl = this.container.get(0);
     var isTiled = pskl.UserSettings.get(pskl.UserSettings.TILED_PREVIEW);
+    this.renderer.setRepeated(isTiled);
+
     var height, width;
 
     if (isTiled) {
@@ -182,6 +223,7 @@
       width = frame.getWidth() * zoom;
     }
 
+    var containerEl = this.container.get(0);
     containerEl.style.height = height + 'px';
     containerEl.style.width = width + 'px';
 
@@ -198,7 +240,7 @@
     this.renderFlag = bool;
   };
 
-  ns.PreviewController.prototype.shoudlRender_ = function () {
+  ns.PreviewController.prototype.shouldRender_ = function () {
     return this.renderFlag || this.popupPreviewController.renderFlag;
   };
 
